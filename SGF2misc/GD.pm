@@ -1,7 +1,7 @@
 # Games::Go::SGF2misc::GD
 #
 # Author: Orien Vandenbergh <orien@icecode.com>
-# $Id: GD.pm,v 1.7 2004/05/13 14:34:45 jettero Exp $
+# $Id: GD.pm,v 1.1 2005/01/19 21:06:42 jettero Exp $
 # vi: fdm=marker fdl=0
 
 package Games::Go::SGF2misc::GD;

@@ -1,0 +1,5 @@
+
+2005-01-19 16:20ish: 
+    The Many Faces of Go seems to generate SGFs that SGF2misc can't handle!
+    I'm working on it.  MFoG uses [tt] pass format.  Arguably, this is wrong, 
+    but according to the specs it's legal in FF[4].   So added.

@@ -1,5 +1,5 @@
 # vi:fdm=marker fdl=0
-# $Id: SGF2misc.pm,v 1.78 2004/06/07 14:24:11 jettero Exp $ 
+# $Id: SGF2misc.pm,v 1.3 2005/01/19 22:33:40 jettero Exp $ 
 
 package Games::Go::SGF2misc;
 
@@ -12,7 +12,7 @@ use Data::Dumper;
 use Compress::Zlib;
 
 # This is actually my major and minor versions, followed by my current CVS revision.
-our $VERSION = q($Revision: 1.78 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.8./;
+our $VERSION = q($Revision: 1.3 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.9./;
 
 1;
 
@@ -312,7 +312,7 @@ sub sgfco2numco {
         return $x;
     };
 
-    if( not $co or ($co eq "tt" and $ff == 3) ) {
+    if( not $co or ($co eq "tt" and ($ff == 3 or $sz<=19)) ) {
         return (wantarray ? (qw(PASS PASS)) : [qw(PASS PASS)]);
     }
 
@@ -767,7 +767,7 @@ sub _parse {
                     my $c = $1;
                     my @c = $this->sgfco2numco($gref, $p->{V});
 
-                    print STDERR "\t\tmove: $c($p->{V})\n" if $ENV{DEBUG} >= 4;
+                    print STDERR "\t\tmove: $c($p->{V}) == [@c]\n" if $ENV{DEBUG} >= 4;
 
                     push @{ $gnode->{moves} }, [ $c, @c, $p->{V} ];
 
@@ -925,7 +925,7 @@ sub _copy_board_matrix {
         my @a = @{ $_ }; 
         push @$board, \@a;
 
-        die "Problem copying board!" unless int @a == $double_check;
+        die "Problem copying board (" . (int @a) . " vs $double_check)!" unless int @a == $double_check;
     }
 
     $this->_time("_copy_board_matrix");

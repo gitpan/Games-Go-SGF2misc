@@ -12,6 +12,7 @@ t/09_memory_test.t
 t/15_3x3_capture_count.t
 t/17_board_draw.t
 t/19_freeze_thaw.t
+t/18_as_image.t
 sgf/crazy.sgf
 sgf/3x3-cap.sgf
 sgf/error.sgf
@@ -303,3 +304,4 @@ img/wc.gif
 img/wq.gif
 img/wt.gif
 META.yml                                 Module meta-data (added by MakeMaker)
+Changelog
