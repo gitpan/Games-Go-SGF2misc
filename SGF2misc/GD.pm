@@ -1,7 +1,7 @@
 # Games::Go::SGF2misc::GD
 #
 # Author: Orien Vandenbergh <orien@icecode.com>
-# $Id: GD.pm,v 1.1 2004/03/22 18:21:36 jettero Exp $
+# $Id: GD.pm,v 1.4 2004/03/25 16:41:04 jettero Exp $
 # vi: fdm=marker fdl=0
 
 package Games::Go::SGF2misc::GD;
@@ -18,7 +18,7 @@ our @ISA = qw(Exporter);
 our %EXPORT_TAGS = ( 'all' => [qw( )] );
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 our @EXPORT = qw( );
-our $VERSION = '0.95';
+our $VERSION = '0.96';
 
 # sub new() {{{
 sub new() {
@@ -33,7 +33,7 @@ sub init() {
     my ($self) = @_;
     $self->{'imagesize'}    = 64    unless $self->{'imagesize'};
     $self->{'boardsize'}    = 19    unless $self->{'boardsize'};
-    $self->{'antialias'}    = 1     unless $self->{'antialias'};
+    $self->{'antialias'}    = 1     unless defined $self->{'antialias'};
 
     $self->{'stonesize'}    = int( $self->{'imagesize'} / $self->{'boardsize'} );
     $self->{'border'}       = int( ($self->{'imagesize'} - ($self->{'stonesize'} * $self->{'boardsize'})) /2 ) + int($self->{'stonesize'}/2);
@@ -96,9 +96,9 @@ sub drawGoban() {
                     13  => [[2,2],  [6,2],  [10,2],
                             [2,6],  [6,6],  [10,6],
                             [2,10], [6,10], [10,10]   ],
-                    19  => [[3,3],  [9,3],  [16,3],
-                            [3,9],  [9,9],  [16,9],
-                            [3,16], [9,16], [16,16] ],
+                    19  => [[3,3],  [9,3],  [15,3],
+                            [3,9],  [9,9],  [15,9],
+                            [3,15], [9,15], [15,15] ],
                 );
     foreach my $point (@{ $hoshi{$self->{'boardsize'}} }) {
         my $x = $self->{'border'}+($self->{'stonesize'}*$point->[0]);
@@ -293,13 +293,13 @@ sub dump {
     $format = 'png' unless $format;
     
     if ( $format =~ /jp(e?)g/i ) {
-        return IMG $self->{'image'}->jpeg;
+        return $self->{'image'}->jpeg;
     } elsif ( $format =~ /gd2/i ) {
-        return IMG $self->{'image'}->gd2;
+        return $self->{'image'}->gd2;
     } elsif ( $format =~ /gd/i ) {
-        return IMG $self->{'image'}->gd;
+        return $self->{'image'}->gd;
     } else {
-        return IMG $self->{'image'}->png;
+        return $self->{'image'}->png;
     }
 }
 # }}}
@@ -314,7 +314,9 @@ GD::SGF - Package to simplify SGF game rendering using GD::Image;
 
     use Games::Go::SGF2misc::GD;
 
-    my $image = new Games::Go::SGF2misc::GD('imagesize' => 256,'boardsize' => 19, 'antialias' => 1);
+    my $image = new Games::Go::SGF2misc::GD('imagesize' => 256,
+                                            'boardsize' => 19, 
+                                            'antialias' => 1    );
 
     $image->gobanColor(127,127,127);
     $image->drawGoban();

@@ -1,5 +1,5 @@
 This file contains message digests of all files listed in MANIFEST,
-signed via the Module::Signature module, version 0.36.
+signed via the Module::Signature module, version 0.38.
 
 To verify the content in this distribution, first make sure you have
 Module::Signature installed, then type:
@@ -14,12 +14,14 @@ not run its Makefile.PL or Build.PL.
 -----BEGIN PGP SIGNED MESSAGE-----
 Hash: SHA1
 
-SHA1 9c4a48ca64cf851b7b97fb0ec1cafc22d8ab7f81 MANIFEST
-SHA1 6f81a259e0604f26ffd68691c446480ddce92811 Makefile.PL
+SHA1 7b989b7bdba4939d7f94446b8fdeded44c9d2520 MANIFEST
+SHA1 b84bbce50f5df439013258a2a16192164aa3f190 META.yml
+SHA1 80d7a3df07281236eaa8296fdac1e807741cf1bd Makefile.PL
 SHA1 f1e5bcb7538a4ca999f1d625dd3e2465fe3f1052 ParseLex-2.15.patch
-SHA1 3e17585d174b28b9ad7a011d74a07bb1845d21bc README
-SHA1 63412c70043c18f9f453321b7b7350f683ec375b SGF2misc.pm
-SHA1 98827d6fd5ccb128be774e22e9b25526a9b1b5ec SGF2misc/GD.pm
+SHA1 24b34c598ee2aa040b62a40c3ebbf9edbff1e606 README
+SHA1 bee92f6041c75bb4f92635d6e8137c3e9accdbde SGF2misc.pm
+SHA1 2fa1467a7298540cd4c93a2da1e324a6646b65e5 SGF2misc/GD.pm
+SHA1 67a9c7c5e4f5cb3b9216b0000854b80a87be89e9 examples/sgf2cgifb
 SHA1 0b184ad51ba2a79e85d2288d5fcf8a1ea0481ea4 gpl.txt
 SHA1 dd8521f1c4741833158af9140148a2df05da630d img/b.gif
 SHA1 31315b13d798c5d0424cad38f552e3ed8828f065 img/b1.gif
@@ -302,26 +304,26 @@ SHA1 158f3acb50199b20326524d3459eb5b2943db6d7 img/w99.gif
 SHA1 a88be92e31bc78aedc9f4ab20d776a12d76864e4 img/wc.gif
 SHA1 a14c6d63c1833286798e6acedf029f63c487e8d8 img/wq.gif
 SHA1 e1c29c7307e27ef357a0fab14bfcf9b7e4058b53 img/wt.gif
+SHA1 15738639553a98595b780d4589399f93a993173b newk_GD.patch
 SHA1 81fe0c61bb7e4e22dfe148a6413cb7ce66745d79 sgf/13x13-with-marks.sgf
 SHA1 caac368d26fec3d334aa6207e4333de571e194e9 sgf/3x3-cap.sgf
 SHA1 9c5303c2eaafef30a97dce9d10780c7b9600815a sgf/9x9-gnugo.sgf
 SHA1 55233ba6207c52da1a2473476822031e7ec5f38e sgf/crazy.sgf
 SHA1 5e6dde4770f62195ff44eeda1406e620183109e2 sgf/error.sgf
 SHA1 208c3e4bf812cd5f92505b17f079902380db5d4c sgf/jettero-sixrusses-2004-03-18.sgf
-SHA1 d0f33064ba49fbecb28b05215c8b614f70bd7c6f sgf/qjzm-a.sgf
+SHA1 d0f33064ba49fbecb28b05215c8b614f70bd7c6f sgf/many_many_games_qjzm-a.sgf
 SHA1 af45db84661887ad47b09cb8f45d0890122721be sgf/redrose-tartrate.sgf
 SHA1 c6639e9d68118fa7cb2d2583b1c9cfd8f0528e4a sgf/talisker-jettero-2004-03-17.sgf
 SHA1 91c33c888937dbaf45884af1aa2e24c847523599 t/00_signature.t
-SHA1 b2c3bc416fd64540c96de33defc5b4230d286b38 t/05_load_modules.t
 SHA1 e1522e406bebba80bd2cfa2cbc5a6667bb943ba9 t/07_load_sgfs.t
-SHA1 03c28ad7f74e7e3cddc304c4f97e5a53274e7872 t/09_memory_test.t
-SHA1 5146751e05028c81772dd527fa3a3114e9f096c7 t/10_as_perl_extractions.t
-SHA1 c673227234cfc6d85fe885168f58d4fe830edd10 t/15_3x3_capture_count.t
-SHA1 84f4d12163bb32b4f56f9df683ed9aa30de276e0 t/17_board_draw.t
+SHA1 0e8448e4bfefe2432ee0d6eb379580b68d940258 t/09_memory_test.t
+SHA1 08ae5145f8f7acf58ed57abe70c357bb96794cb6 t/15_3x3_capture_count.t
+SHA1 231a30fe22d513f0c7df7ed43cbabc6039a89d54 t/17_board_draw.t
+SHA1 2882e99fadf00623cf583d1b74ae7f0a01f1dc75 t/19_freeze_thaw.t
 -----BEGIN PGP SIGNATURE-----
 Version: GnuPG v1.2.2 (GNU/Linux)
 
-iD8DBQFAYFr95OVNEZoM2pkRAtqQAJ99TrDY1kr8SF3K5ERZkkbvCLyL+wCgnwrk
-dBqm+qiKfOBUYQWdP3L7G84=
-=uRwW
+iD8DBQFAYxl95OVNEZoM2pkRAlcPAJ0XKxQuPDP/CE8GtqUOb6QW4TeGTwCglMIu
+2J8hV9i1SBJa7DasvaTDaEc=
+=i/eU
 -----END PGP SIGNATURE-----

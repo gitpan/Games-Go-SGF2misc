@@ -1,20 +1,34 @@
+vi:tw=75:
+
+SIGSEGV NOTE:
+
+I was getting segmentation faults (one one of 4 test boxen) on
+t/19_freeze_thaw.t ... Turns out, it was my perl version.  5.8.0 was just
+that buggy.
+
 
 GD NOTE: 
 
-I don't include GD/GD::Image in the PREREQ_PM, but you will need 
-it to use the as_image() function.
+I now include GD/GD::Image in the PREREQ_PM.  I didn't want to have to do
+it, since it's difficult to install and very little of this package needs
+it.  But I did it...  
+
+If you want to skip GD, you can apply this patch:
+
+    patch < newk_GD.patch && perl Makefile.PL
+
+If you still can't get it, email me...
 
 
 Parse::Lex NOTE:
 
-If you are having trouble with Parse::Lex, then know that you are
-not alone.  It seemed to compile on my devel computer, but
-NOWHERE else. :)
+If you are having trouble with Parse::Lex, then know that you are not
+alone.  It seemed to compile on my devel computer, but NOWHERE else. :)
 
 There is a ParseLex-2.15.patch including in this distro.  Try it.
 
 
-
+BOTTOM LINE:
 
 Oh, great... yet another SGF parser?
 

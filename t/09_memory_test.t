@@ -1,5 +1,5 @@
 # vi:fdm=marker fdl=0 syntax=perl:
-# $Id: 09_memory_test.t,v 1.1 2004/03/22 16:06:04 jettero Exp $
+# $Id: 09_memory_test.t,v 1.3 2004/03/24 14:23:58 jettero Exp $
 
 use strict;
 use Test;
@@ -11,21 +11,18 @@ if( not $@ ) {
     $uup = 1;
 }
 
-my $tests = 70;
+my $tests = 50;
 
 plan tests => $tests;
 if( not $uup ) {
     skip( 1 ) for 1..$tests;
 }
 
-
-
 my $freebies = 132;  # On my system, the pid grows by 132 bytes for every call of parse().
    $freebies *=  2;  # If you can tell me why, I'll be glad to hear it, because I have
                      # pretty carefully made sure I'm not leaving any circular refs around...
                      # Personally, I think it's a perl internal thing that I can't help.
                      # -Jet
-
 
 my $file = "sgf/crazy.sgf";
 my $sgf = new Games::Go::SGF2misc;

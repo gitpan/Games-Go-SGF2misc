@@ -4,23 +4,24 @@ README
 Makefile.PL
 SGF2misc.pm
 ParseLex-2.15.patch
-t/00_signature.t
-t/05_load_modules.t
+newk_GD.patch
+gpl.txt
+SGF2misc/GD.pm
+examples/sgf2cgifb
 t/07_load_sgfs.t
 t/09_memory_test.t
-t/10_as_perl_extractions.t
 t/15_3x3_capture_count.t
 t/17_board_draw.t
+t/19_freeze_thaw.t
 sgf/crazy.sgf
 sgf/3x3-cap.sgf
 sgf/error.sgf
-sgf/qjzm-a.sgf
+sgf/many_many_games_qjzm-a.sgf
 sgf/redrose-tartrate.sgf
 sgf/talisker-jettero-2004-03-17.sgf
 sgf/jettero-sixrusses-2004-03-18.sgf
 sgf/13x13-with-marks.sgf
 sgf/9x9-gnugo.sgf
-SGF2misc/GD.pm
 img/b.gif
 img/b1.gif
 img/b10.gif
@@ -302,4 +303,4 @@ img/w99.gif
 img/wc.gif
 img/wq.gif
 img/wt.gif
-gpl.txt
+META.yml                                 Module meta-data (added by MakeMaker)
