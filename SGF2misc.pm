@@ -1,14 +1,16 @@
 # vi:fdm=marker fdl=0
-# $Id: SGF2misc.pm,v 1.33 2004/03/21 17:07:19 jettero Exp $ 
+# $Id: SGF2misc.pm,v 1.44 2004/03/23 13:18:11 jettero Exp $ 
 
 package Games::Go::SGF2misc;
 
 use strict;
+no warnings;
+
 use Carp;
 use Parse::Lex;
 
 # This is actually my major version, followed by my current CVS revision.
-our $VERSION = q($Revision: 1.33 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.3./;
+our $VERSION = q($Revision: 1.44 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.6./;
 
 1;
 
@@ -33,7 +35,28 @@ sub parse {
     my $this = shift;
     my $file = shift;
 
-    $this->{error} = undef;
+    my %did = ();
+    my @to_nuke;
+    
+    push @to_nuke, (@{$this->{gametree}}) if ref($this->{gametree}) eq "ARRAY";
+    push @to_nuke, $this->{parse}         if ref($this->{parse})    eq "HASH";
+
+    while( @to_nuke ) {
+        my $ref = shift @to_nuke;
+        for my $k (qw(p c kids parent)) {
+            if( my $v = $ref->{$k} ) {
+                if( ref($v) eq "ARRAY" ) {
+                    push @to_nuke, @$v;
+                }
+
+                delete $ref->{$k};
+            }
+        }
+    }
+
+    for my $k (keys %$this) {
+        delete $this->{$k} unless {frm=>1}->{$k};
+    }
     $global::lex_error = undef;
 
     if( -f $file ) {
@@ -56,7 +79,7 @@ sub parse {
 
         Parse::Lex->trace if $ENV{DEBUG} > 30;
 
-        my $lex = new Parse::Lex(@rules);
+        my $lex = new Parse::Lex(@rules); $^W = 0; no warnings;
            $lex->from(\*SGFIN);
 
         $this->{parse} = { p => undef, n => [], c=>[] }; # p => parent, n => nodes, c => child Collections
@@ -137,6 +160,10 @@ sub parse {
 
         print STDERR "\$this size (after _parse)= ", $this->{frm}->format_bytes(total_size( $this )), "\n" if $ENV{DEBUG} > 0;
 
+        print STDERR "rebuilding {refdb} (for ref2id/id2ref)\n" if $ENV{DEBUG} > 0;
+        $this->{nodelist} = { map {$this->_ref2id($_) => $this->_node_list([], $_)} @{$this->{gametree}} };
+        print STDERR "\$this size (after _node_list())= ", $this->{frm}->format_bytes(total_size( $this )), "\n" if $ENV{DEBUG} > 0;
+
         return $r;
     }
 
@@ -188,14 +215,14 @@ sub sgfco2numco {
         return $a;
     };
 
-    if( $co =~ m/^([a-zA-Z])([a-zA-Z])$/ ) {
-        my ($col, $row) = ($1, $2);
-
-        return (wantarray ? ($inty->($col), $inty->($row)) : [ $inty->($col), $inty->($row) ]);
+    if( not $co or ($co eq "tt" and $ff == 3) ) {
+        return (wantarray ? (qw(PASS PASS)) : [qw(PASS PASS)]);
     }
 
-    if( not $co ) {
-        return (wantarray ? (qw(PASS PASS)) : [qw(PASS PASS)]);
+    if( $co =~ m/^([a-zA-Z])([a-zA-Z])$/ ) {
+        my ($row, $col) = ($1, $2);
+
+        return (wantarray ? ($inty->($col), $inty->($row)) : [ $inty->($col), $inty->($row) ]);
     }
 
     croak "Parse Error: co-ordinate not understood ($co)\n";
@@ -213,38 +240,8 @@ sub parse_hash {
 # node_list {{{
 sub node_list {
     my $this  = shift;
-    my $force = 0;
-
-    if( not defined $this->{nodelist} or $force ) {
-        $this->{nodelist} = { map {$this->_ref2id($_) => $this->_node_list([], $_)} @{$this->{gametree}} }
-    }
 
     return $this->{nodelist};
-}
-
-sub _node_list {
-    my $this = shift;
-    my $list = shift;
-    my $cur  = shift;
-
-    for my $kid (@{ $cur->{kids} }) {
-        my $id = $this->_ref2id( $kid );
-        my ($var, $mov) = split /\-/, $id;
-
-        if( $var > @{ $list } ) {
-            my $b = [];
-            push @$list, $b;
-            for (1..$mov) {
-                push @$b, undef;
-            }
-        }
-
-        push @{ $list->[$var-1] }, $id;
-
-        $this->_node_list($list, $kid);
-    }
-
-    return $list;
 }
 # }}}
 # as_perl {{{
@@ -269,31 +266,209 @@ sub as_text {
     my $this = shift;
     my $node = shift;
 
-    unless( ref($node) ) {
+    if( $node =~ m/\d+\-(\d+|root)/ ) {
        $node = $this->as_perl( $node ) or return 0;
+    } elsif( not ref($node) eq "HASH" ) {
+        $this->{error} = "The as_functions() take only take IDs or node references as arguments, ie, not \"$node\"";
+        return 0;
     }
 
-    if( ref($node) eq "HASH" ) {
-        my $board = $node->{board};
+    my $board = $node->{board};
 
-        my $b = "";
-        for my $i (0..$#{ $board }) {
-            for my $j (0..$#{ $board->[$i] }) {
-                $b .= " " . { ' '=>'.', 'W'=>'O', 'B'=>'X' }->{$board->[$i][$j]};
-            }
-            $b .= "\n";
+    my $b = "";
+    for my $i (0..$#{ $board }) {
+        for my $j (0..$#{ $board->[$i] }) {
+            $b .= " " . { ' '=>'.', 'W'=>'O', 'B'=>'X' }->{$board->[$i][$j]};
+        }
+        $b .= "\n";
+    }
+
+    return $b;
+}
+# }}}
+# as_html {{{
+sub as_html {
+    my $this = shift;
+    my $node = shift;
+    my $dir  = shift;
+       $dir  = "./img" unless $dir;
+
+    if( $node =~ m/\d+\-(\d+|root)/ ) {
+       $node = $this->as_perl( $node ) or return 0;
+    } elsif( not ref($node) eq "HASH" ) {
+        $this->{error} = "The as_functions() take only take IDs or node references as arguments";
+        return 0;
+    }
+
+    my $board = $node->{board};
+    my $size  = @{$board->[0]}; # inaccurate?
+
+    my $hoshi = {};
+    if( $size == 19 ) {
+        $hoshi = { "3 3" => 1, "3 15" => 1, "15 3" => 1, "15 15" => 1,
+            "9 3" => 1, "9 15" => 1, "3 9" => 1, "15 9" => 1, "9 9" => 1, };
+    } elsif( $size == 13 ) {
+        $hoshi = { "3 3" => 1, "9 9" => 1, "3 9" => 1, "9 3" => 1,
+            "6 3" => 1, "3 6" => 1, "9 6" => 1, "6 9" => 1, "6 6" => 1, };
+    } elsif( $size == 9 ) {
+        $hoshi = { "2 2" => 1, "2 6" => 1, "6 6" => 1, "6 2" => 1, "4 4" => 1, };
+    }
+
+    $size--;
+
+    my $crazy_moku_alg = sub { my ($i, $j) = @_;
+        return "ulc.gif" if $i == 0     and $j == 0;
+        return "urc.gif" if $i == 0     and $j == $size;
+        return "llc.gif" if $i == $size and $j == 0;
+        return "lrc.gif" if $i == $size and $j == $size;
+        return "ts.gif"  if $i == 0     and $j != 0 and $j != $size;
+        return "bs.gif"  if $i == $size and $j != 0 and $j != $size;
+        return "ls.gif"  if $j == 0     and $i != 0 and $i != $size;
+        return "rs.gif"  if $j == $size and $i != 0 and $i != $size;
+
+        return "h.gif" if $hoshi->{"$i $j"};
+        return "p.gif",
+    };
+
+    my %marks = ();
+    for my $m (@{ $node->{marks} }) {
+        $marks{"$m->[1] $m->[2]"} = $m->[0];
+    }
+
+    my $mark_alg = sub { 
+        my ($mark, $img) = @_;
+
+        return "bt.gif" if $mark eq "TR" and $img eq "b.gif";
+        return "wt.gif" if $mark eq "TR" and $img eq "w.gif";
+        return "bc.gif" if $mark eq "CR" and $img eq "b.gif";
+        return "wc.gif" if $mark eq "CR" and $img eq "w.gif";
+        return "bq.gif" if $mark eq "SQ" and $img eq "b.gif";
+        return "wq.gif" if $mark eq "SQ" and $img eq "w.gif";
+
+        if( ($mark = int($mark)) > 0 and $mark <= 100 ) {
+            return "b$mark.gif" if $img eq "b.gif";
+            return "w$mark.gif"
         }
 
-        return $b;
-    } else {
-        $this->{error} = "unknown error: node not found or something";
+        return $img;
+    };
+
+    my $b = "<table cellpadding=0 cellspacing=0>\n";
+    for my $i (0..$#{ $board }) {
+        $b .= "<tr>";
+        for my $j (0..$#{ $board->[$i] }) {
+
+            my $c = { 
+                'B' => "b.gif",
+                'W' => "w.gif",
+            }->{$board->[$i][$j]};
+
+            $c = $crazy_moku_alg->($i, $j) unless $c;
+            $c = $mark_alg->($marks{"$i $j"}, $c);
+
+            $c  = "$dir/$c";
+            $b .= "<td><img src=\"$c\" width=19 height=19></td> ";
+        }
+        $b .= "</tr>\n";
     }
 
-    return 0;
+    return "$b</table>";
+}
+# }}}
+# as_image {{{
+sub as_image {
+    my $this = shift;
+    my $node = shift;
+    my $argu = shift;
+    my %opts = (imagesize=>256, antialias=>0);
+
+    if( $node =~ m/\d+\-(\d+|root)/ ) {
+       $node = $this->as_perl( $node ) or return 0;
+    } elsif( not ref($node) eq "HASH" ) {
+        croak "The as_functions() take only take IDs or node references as arguments";
+    }
+
+    my $board = $node->{board};
+    my $size  = @{$board->[0]}; # inaccurate?
+
+    if( ref($argu) eq "HASH" ) {
+        @opts{keys %$argu} = (values %$argu);
+    } else {
+        croak "as_image() takes a hashref argument... e.g., {imagesize=>256, etc=>1} or nothing at all.";
+    }
+
+    $opts{boardsize} = $size;
+    $opts{filename}  = "$node->{variation}-$node->{move_no}.png" unless $opts{filename};
+
+    my $name = "Games::Go::SGF2misc::GD (aka as_image)";
+
+    eval "use GD;"; 
+    if( $@ ) {
+        croak "You need to install GD/GD::Image (version 2.15+ or so) to use $name";
+    } elsif( $GD::VERSION < 2.0 ) {
+        croak "You need GD/GD::Image version 2.15+ or so to use $name";
+    }
+
+    eval "use Games::Go::SGF2misc::GD;";
+    if( $@ ) {
+        if( $@ =~ m/Bareword/ ) {
+            croak "You need GD/GD::Image version 2.15+ or so to use $name";
+        } else { croak $@ }
+    }
+
+    use Games::Go::SGF2misc::GD;
+    my $image = new Games::Go::SGF2misc::GD(%opts);
+
+    $image->gobanColor(@{ $opts{gobanColor} }) if $opts{gobanColor};
+    $image->drawGoban();
+
+    for my $i (0..$#{ $board }) {
+        for my $j (0..$#{ $board->[$i] }) {
+            if( $board->[$i][$j] =~ m/([WB])/ ) {
+                if( $ENV{DEBUG} > 0 ) {
+                    print STDERR "placeStone($1, [$i, $j])\n";
+                }
+                $image->placeStone(lc($1), [$i, $j]);
+            }
+        }
+    }
+
+    # draw moves
+    # draw marks
+
+    $image->save($opts{filename});
 }
 # }}}
 
 # internals
+# _node_list {{{
+sub _node_list {
+    my $this = shift;
+    my $list = shift;
+    my $cur  = shift;
+
+    # $this->{nodelist} = { map {$this->_ref2id($_) => $this->_node_list([], $_)} @{$this->{gametree}} };
+
+    for my $kid (@{ $cur->{kids} }) {
+        my $id = $this->_ref2id( $kid );
+        my ($var, $mov) = split /\-/, $id;
+
+        if( $var > @{ $list } ) {
+            my $b = [];
+            push @$list, $b;
+            for (1..$mov) {
+                push @$b, undef;
+            }
+        }
+
+        push @{ $list->[$var-1] }, $id;
+
+        $this->_node_list($list, $kid);
+    }
+
+    return $list;
+}
+# }}}
 # _parse (aka, the internal parse) {{{
 sub _parse {
     my $this   = shift;
@@ -402,11 +577,13 @@ sub _parse {
 
                     push @{ $gnode->{moves} }, [ $c, @c, $p->{V} ];
 
-                    # fix up board
-                    $gnode->{board}[$c[0]][$c[1]] = $c;
+                    unless( $c[0] eq "PASS" ) {
+                        # fix up board
+                        $gnode->{board}[$c[0]][$c[1]] = $c;
 
-                    # check for captures
-                    $this->_check_for_captures($gref->{game_properties}{SZ}, $gnode, @c );
+                        # check for captures
+                        $this->_check_for_captures($gref->{game_properties}{SZ}, $gnode, @c );
+                    }
 
                 } elsif( $p->{P} =~ m/^A([WBE])$/ ) {
                     my $c = $1;
@@ -424,7 +601,7 @@ sub _parse {
                 } elsif( $p->{P} =~ m/^C$/ ) {
                     push @{ $gnode->{comments} }, $p->{V};
 
-                } elsif( $p->{P} =~ m/^(?:CR|TR)$/ ) {
+                } elsif( $p->{P} =~ m/^(?:CR|TR|SQ)$/ ) {
                     my @c = $this->sgfco2numco($gref, $p->{V});
 
                     push @{ $gnode->{marks} }, [ $p->{P}, @c, $p->{V} ];
@@ -434,8 +611,11 @@ sub _parse {
                     # whosoever get's the $board out of the $gnode, can
                     # also get the $marks!
 
+                } elsif( $p->{P} =~ m/^(?:LB)$/ and $p->{V} =~ m/^(..)\:(.+)$/ ) {
+                    push @{ $gnode->{marks} }, [ $2, $this->sgfco2numco($gref, $1), $1 ];
+
                 } elsif( not $p->{P} =~ m/$gm_pr_reg/ ) {
-                    $gnode->{other}{$p->{P}} = $p->{V};
+                    push @{ $gnode->{other}{$p->{P}} }, $p->{V};
                 }
             }
 
@@ -484,8 +664,14 @@ sub _ref2id {
 
     unless( defined $this->{refdb}{$ref} ) {
         my $id;
+        my $c = 2;
         if( defined($ref->{variation}) and defined($ref->{move_no}) ) {
             $id = $ref->{variation} . "-" . ($ref->{move_no} ? $ref->{move_no} : "root");
+            my $cur = $id;
+            while( defined $this->{refdb}{$cur} ) {
+                $cur = $id . "-" . $c++;
+            }
+            $id = $cur;
         } else {
             $id = "game #" . (++$this->{games});
         }
@@ -494,6 +680,11 @@ sub _ref2id {
 
         $this->{refdb}{$ref} = $id;
         $this->{refdb}{$id} = $ref;
+
+        if( $ENV{DEBUG} > 20 ) {
+            print STDERR "\$this\->\{refdb\}\{\$ref($ref)\} = $this->{refdb}{$ref} ",
+                        "/ \$this\-\>\{refdb\}\{\$id($id)\} = $this->{refdb}{$id}\n";
+        }
     }
 
     return $this->{refdb}{$ref};
@@ -533,6 +724,18 @@ sub _copy_board_matrix {
             push @$row, $tocp->[$i][$j];
         }
         push @$board, $row;
+    }
+
+    my $max_i = $#{ $tocp };
+    for my $i (0 .. $max_i) {
+        if( $max_i != $#{ $tocp->[$i] } ) {
+            if( $ENV{DEBUG} > 0 ) {
+                use Data::Dumper;
+                $Data::Dumper::Indent = 1;
+                print STDERR Dumper( $board ), "\n";
+            }
+            die "FATAL: problem copying board";
+        }
     }
 
     return $board;
@@ -653,7 +856,7 @@ __END__
 
 =head1 NAME
 
-    Games::Go::SGF2misc Reads SGF files and produces usable output in many formats
+    Games::Go::SGF2misc - Reads SGF files and produces usable output in many formats
 
 =head1 SYNOPSIS
 
@@ -837,6 +1040,38 @@ __END__
     #   . . . . . O X O O . . . . . . . . . .
     #   Captures:  Black-11 / White-16
 
+=head1 as_html 
+
+    # This function works very much like the as_text function above, but
+    # instead prints out an html table full of images.
+
+    open OUT, ">example.html" or die $!;
+    print OUT, $sgf->as_html( $end, "/image/dir/" );
+
+    # The only real difference is the image-dir argument (which defaults to
+    # "./img").  There is a directory of images included with SGF2misc.
+    # They are from this page:
+
+    # http://www.britgo.org/gopcres/gopcres1.html#ag-gifs
+
+    # They are Andrew Grant's GIF images.  I did NOT seek permission to
+    # re-distribute them.  Perhaps I have no right to do so.  I really
+    # don't know how to get ahold of him.  
+
+    # If anyone knows how who to ask, please tell me.  If anyone knows it's
+    # a problem, please tell me.
+
+    # 3/22/04, Orien Vandenbergh made bc.gif, wc.gif, bq.gif and wq.gif for me.
+
+    # NOTE: On marks, this as_html only shows circles, triangles, squares,
+    # and numbers where there are stones.  It does not show letters at all.
+    # This is only because I don't have images for _everything_. :)
+
+=head1 as_image
+
+    # This is still in the works... sooon!
+
+
 =head1 parse_hash
 
     my $hash = $sgf->parse_hash;  
@@ -844,7 +1079,7 @@ __END__
     # You'll find this highly useless.  It returns the parse tree as a perl
     # hash.  Check out as_perl() instead.
 
-head1 Board Postion Character Map
+=head1 Board Postion Character Map
 
     $board = [
         [ ' ', ' ', ' ' ],
@@ -880,5 +1115,21 @@ head1 Board Postion Character Map
     Please contact me with ANY suggestions, no matter how pedantic.
 
     Jettero Heller <japh@voltar-confed.org>
+
+=head1 COPYRIGHT
+
+    GPL!  I included a gpl.txt for your reading enjoyment.
+
+    Though, additionally, I will say that I'll be tickled if you were to
+    include this package in any commercial endeavor.  Also, any thoughts to
+    the effect that using this module will somehow make your commercial
+    package GPL should be washed away.
+
+    I hereby release you from any such silly conditions.
+
+    This package and any modifications you make to it must remain GPL.  Any
+    programs you (or your company) write shall remain yours (and under
+    whatever copyright you choose) even if you use this package's intended
+    and/or exported interfaces in them.
 
 =cut

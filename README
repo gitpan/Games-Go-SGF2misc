@@ -1,4 +1,17 @@
-vi:tw=65:
+
+
+Parse::Lex NOTE:
+
+
+
+If you are having trouble with Parse::Lex, then know that you are
+not alone.  It seemed to compile on my devel computer, but
+NOWHERE else. :)
+
+There is a ParseLex-2.15.patch including in this distro.  Try it.
+
+
+
 
 Oh, great... yet another SGF parser?
 
