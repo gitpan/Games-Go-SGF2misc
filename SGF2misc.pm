@@ -1,5 +1,5 @@
 # vi:fdm=marker fdl=0
-# $Id: SGF2misc.pm,v 1.71 2004/03/25 17:35:52 jettero Exp $ 
+# $Id: SGF2misc.pm,v 1.78 2004/06/07 14:24:11 jettero Exp $ 
 
 package Games::Go::SGF2misc;
 
@@ -12,7 +12,7 @@ use Data::Dumper;
 use Compress::Zlib;
 
 # This is actually my major and minor versions, followed by my current CVS revision.
-our $VERSION = q($Revision: 1.71 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.7./;
+our $VERSION = q($Revision: 1.78 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.8./;
 
 1;
 
@@ -38,6 +38,30 @@ sub parse {
     my $this = shift;
     my $file = shift;
 
+    if( -f $file ) {
+        local $/;  # Enable local "slurp" ... ie, by unsetting $/ for this local scope, it will not end lines on \n
+        open SGFIN, $file or die "couldn't open $file: $!";
+
+        return $this->parse_internal(\*SGFIN);
+    }
+
+    $this->{error} = "Parse Error reading $file: unknown";
+    return 0;
+}
+# }}}
+# parse_string {{{
+sub parse_string {
+    my $this = shift;
+    my $string = shift;
+
+    return $this->parse_internal($string);
+}
+# }}}
+# parse_internal {{{
+sub parse_internal {
+    my $this = shift;
+    my $file = shift;
+
     for my $k (keys %$this) {
         delete $this->{$k} unless {Time=>1, frm=>1}->{$k};
     }
@@ -45,150 +69,140 @@ sub parse {
 
     $this->_time("parse");
 
-    if( -f $file ) {
-        my @rules = (
-            VALUE  => '\[(?ms:.*?(?<!\x5c))\]',
+    my @rules = (
+        VALUE  => '\[(?ms:.*?(?<!\x5c))\]',
 
-            BCOL   => '\(',         # begin collection
-            ECOL   => '\)',         # end collection
-            PID    => '[A-Z]+',     # property identifier
-            NODE   => ';',          # new node
-            WSPACE => '[\s\r\n]',
+        BCOL   => '\(',         # begin collection
+        ECOL   => '\)',         # end collection
+        PID    => '[A-Z]+',     # property identifier
+        NODE   => ';',          # new node
+        WSPACE => '[\s\r\n]',
 
-            qw(ERROR  .*), sub {
-                $global::lex_error = "Parse Error reading $file: $_[1]\n";
+        qw(ERROR  .*), sub {
+            $global::lex_error = "Parse Error reading $file: $_[1]\n";
+        }
+    );
+
+    Parse::Lex->trace if $ENV{DEBUG} > 30;
+
+    my $lex = new Parse::Lex(@rules); $^W = 0; no warnings;
+       $lex->from($file);
+
+    $this->{parse} = { p => undef, n => [], c=>[] }; # p => parent, n => nodes, c => child Collections
+
+    my $ref = $this->{parse};  # our current position
+
+    # parse rules:
+    my $nos = -1;  # the current node (array position).  -1 when we're not in a node
+    my $pid = 0;   # 0 unless we just got a pid; otherwise, node array position
+
+    TOKEN: while (1) {
+        my $token = $lex->next;
+
+        if (not $lex->eoi) {
+            my $C = $token->name;
+            my $V = $token->text;
+
+            if( $C eq "ERROR" or defined $global::lex_error ) {
+                $global::lex_error = "Parse Error reading $file: unknown";
+                $this->{error} = $global::lex_error;
+                return 0;
             }
-        );
 
-        local $/;  # Enable local "slurp" ... ie, by unsetting $/ for this local scope, it will not end lines on \n
-        open SGFIN, $file or die "couldn't open $file: $!";
+            if( $C eq "BCOL" ) { 
+                push @{ $ref->{c} }, { p=>$ref, n=>[], c=>[] };
+                $ref = $ref->{c}[$#{ $ref->{c} }];
+                $nos = -1;
 
-        Parse::Lex->trace if $ENV{DEBUG} > 30;
+            } elsif( $C eq "ECOL" ) { 
+                $ref = $ref->{p};
+                $nos = -1;
 
-        my $lex = new Parse::Lex(@rules); $^W = 0; no warnings;
-           $lex->from(\*SGFIN);
+            } elsif( $C eq "NODE" ) {
+                push @{ $ref->{n} }, [];
+                $nos = $#{ $ref->{n} };
 
-        $this->{parse} = { p => undef, n => [], c=>[] }; # p => parent, n => nodes, c => child Collections
-
-        my $ref = $this->{parse};  # our current position
-
-        # parse rules:
-        my $nos = -1;  # the current node (array position).  -1 when we're not in a node
-        my $pid = 0;   # 0 unless we just got a pid; otherwise, node array position
-
-        TOKEN: while (1) {
-            my $token = $lex->next;
-
-            if (not $lex->eoi) {
-                my $C = $token->name;
-                my $V = $token->text;
-
-                if( $C eq "ERROR" or defined $global::lex_error ) {
-                    $global::lex_error = "Parse Error reading $file: unknown";
-                    $this->{error} = $global::lex_error;
+            } 
+            
+            # this get's it's own if block for the $pid
+            if( $C eq "PID" ) {
+                if( $nos == -1 ) {
+                    $this->{error} = "Parse Error reading $file: property identifier ($V) in strange place";
                     return 0;
                 }
+                push @{ $ref->{n}[$nos] }, {P=>$V};
+                $pid = $#{ $ref->{n}[$nos] };
 
-                if( $C eq "BCOL" ) { 
-                    push @{ $ref->{c} }, { p=>$ref, n=>[], c=>[] };
-                    $ref = $ref->{c}[$#{ $ref->{c} }];
-                    $nos = -1;
+            } elsif( $C eq "VALUE" ) {
+                $V =~ s/^\[//ms; $V =~ s/\]$//ms;
+                $V =~ s/\\(.)/$1/msg;
 
-                } elsif( $C eq "ECOL" ) { 
-                    $ref = $ref->{p};
-                    $nos = -1;
-
-                } elsif( $C eq "NODE" ) {
-                    push @{ $ref->{n} }, [];
-                    $nos = $#{ $ref->{n} };
-
-                } 
-                
-                # this get's it's own if block for the $pid
-                if( $C eq "PID" ) {
-                    if( $nos == -1 ) {
-                        $this->{error} = "Parse Error reading $file: property identifier ($V) in strange place";
-                        return 0;
-                    }
-                    push @{ $ref->{n}[$nos] }, {P=>$V};
-                    $pid = $#{ $ref->{n}[$nos] };
-
-                } elsif( $C eq "VALUE" ) {
-                    $V =~ s/^\[//ms; $V =~ s/\]$//ms;
-                    $V =~ s/\\(.)/$1/msg;
-
-                    if( $nos == -1 or $pid == -1 ) {
-                        $this->{error} = "Parse Error reading $file: property value ($V) in strange place";
-                        return 0;
-                    }
-                    if( defined $ref->{n}[$nos][$pid]{V} ) {
-                        push @{ $ref->{n}[$nos] }, {P=>$ref->{n}[$nos][$pid]{P}};
-                        $pid = $#{ $ref->{n}[$nos] };
-                    }
-
-                    $ref->{n}[$nos][$pid]{V} = $V;
-
-                } else {
-                    $pid = -1;
+                if( $nos == -1 or $pid == -1 ) {
+                    $this->{error} = "Parse Error reading $file: property value ($V) in strange place";
+                    return 0;
                 }
+                if( defined $ref->{n}[$nos][$pid]{V} ) {
+                    push @{ $ref->{n}[$nos] }, {P=>$ref->{n}[$nos][$pid]{P}};
+                    $pid = $#{ $ref->{n}[$nos] };
+                }
+
+                $ref->{n}[$nos][$pid]{V} = $V;
 
             } else {
-                last TOKEN;
+                $pid = -1;
             }
+
+        } else {
+            last TOKEN;
         }
-
-        close SGFIN;
-
-        $this->_time("parse");
-
-        print STDERR "SGF Parsed!  Calling internal _parse() routine\n" if $ENV{DEBUG} > 0;
-        print STDERR "\$this size (before _parse)= ", $this->{frm}->format_bytes(total_size( $this )), "\n" if $ENV{DEBUG} > 0;
-
-        $this->_time("_parse");
-
-        my $r = $this->_parse(0, $this->{parse});
-
-        $this->_time("_parse");
-
-        print STDERR "\$this size (after _parse)= ", $this->{frm}->format_bytes(total_size( $this )), "\n" if $ENV{DEBUG} > 0;
-
-        print STDERR "rebuilding {refdb} (for ref2id/id2ref)\n" if $ENV{DEBUG} > 0;
-
-        $this->_time("_nodelist");
-
-        $this->{nodelist} = { map {$this->_ref2id($_) => $this->_nodelist([], $_)} @{$this->{gametree}} };
-
-        $this->_time("_nodelist");
-
-        print STDERR "\$this size (after _nodelist())= ", $this->{frm}->format_bytes(total_size( $this )), "\n" if $ENV{DEBUG} > 0;
-
-        $this->_time("nuke(gametree and parse)");
-        my @to_nuke;
-        
-        push @to_nuke, (@{$this->{gametree}}) if ref($this->{gametree}) eq "ARRAY";
-        push @to_nuke, $this->{parse}         if ref($this->{parse})    eq "HASH";
-
-        while( @to_nuke ) {
-            my $ref = shift @to_nuke;
-            for my $k (qw(p c kids parent)) {
-                if( my $v = $ref->{$k} ) {
-                    if( ref($v) eq "ARRAY" ) {
-                        push @to_nuke, @$v;
-                    }
-
-                    delete $ref->{$k};
-                }
-            }
-        }
-        $this->_time("nuke(gametree and parse)");
-
-        $this->_show_timings if $ENV{DEBUG} > 0;
-
-        return $r;
     }
 
-    $this->{error} = "Parse Error reading $file: unknown";
-    return 0;
+    $this->_time("parse");
+
+    print STDERR "SGF Parsed!  Calling internal _parse() routine\n" if $ENV{DEBUG} > 0;
+    print STDERR "\$this size (before _parse)= ", $this->{frm}->format_bytes(total_size( $this )), "\n" if $ENV{DEBUG} > 0;
+
+    $this->_time("_parse");
+
+    my $r = $this->_parse(0, $this->{parse});
+
+    $this->_time("_parse");
+
+    print STDERR "\$this size (after _parse)= ", $this->{frm}->format_bytes(total_size( $this )), "\n" if $ENV{DEBUG} > 0;
+
+    print STDERR "rebuilding {refdb} (for ref2id/id2ref)\n" if $ENV{DEBUG} > 0;
+
+    $this->_time("_nodelist");
+
+    $this->{nodelist} = { map {$this->_ref2id($_) => $this->_nodelist([], $_)} @{$this->{gametree}} };
+
+    $this->_time("_nodelist");
+
+    print STDERR "\$this size (after _nodelist())= ", $this->{frm}->format_bytes(total_size( $this )), "\n" if $ENV{DEBUG} > 0;
+
+    $this->_time("nuke(gametree and parse)");
+    my @to_nuke;
+    
+    push @to_nuke, (@{$this->{gametree}}) if ref($this->{gametree}) eq "ARRAY";
+    push @to_nuke, $this->{parse}         if ref($this->{parse})    eq "HASH";
+
+    while( @to_nuke ) {
+        my $ref = shift @to_nuke;
+        for my $k (qw(p c kids parent)) {
+            if( my $v = $ref->{$k} ) {
+                if( ref($v) eq "ARRAY" ) {
+                    push @to_nuke, @$v;
+                }
+
+                delete $ref->{$k};
+            }
+        }
+    }
+    $this->_time("nuke(gametree and parse)");
+
+    $this->_show_timings if $ENV{DEBUG} > 0;
+
+    return $r;
 }
 # }}}
 # freeze {{{
@@ -222,9 +236,9 @@ sub thaw {
 
         $frz = "";
 
-        my $b;
-        while( my $r = $gz->gzread($b, 32768) ) {
-            $frz .= $b;
+        my $x;
+        while( my $r = $gz->gzread($x, 32768) ) {
+            $frz .= $x;
         }
         $gz->gzclose;
 
@@ -288,14 +302,14 @@ sub sgfco2numco {
     }
 
     my $inty = sub {
-        my $a = -1;
+        my $x = -1;
 
-        $a = int(hex(unpack("H*", $_[0]))) - 97 if $_[0] =~ m/[a-z]/;
-        $a = int(hex(unpack("H*", $_[0]))) - 65 if $_[0] =~ m/[A-Z]/;
+        $x = int(hex(unpack("H*", $_[0]))) - 97 if $_[0] =~ m/[a-z]/;
+        $x = int(hex(unpack("H*", $_[0]))) - 65 if $_[0] =~ m/[A-Z]/;
 
-        die "unexpected error reading column identifier" unless $a > -1;
+        die "unexpected error reading column identifier" unless $x > -1;
 
-        return $a;
+        return $x;
     };
 
     if( not $co or ($co eq "tt" and $ff == 3) ) {
@@ -362,15 +376,15 @@ sub as_text {
 
     my $board = $node->{board};
 
-    my $b = "";
+    my $x = "";
     for my $i (0..$#{ $board }) {
         for my $j (0..$#{ $board->[$i] }) {
-            $b .= " " . { ' '=>'.', 'W'=>'O', 'B'=>'X' }->{$board->[$i][$j]};
+            $x .= " " . { ' '=>'.', 'W'=>'O', 'B'=>'X' }->{$board->[$i][$j]};
         }
-        $b .= "\n";
+        $x .= "\n";
     }
 
-    return $b;
+    return $x;
 }
 # }}}
 # as_html {{{
@@ -414,7 +428,7 @@ sub as_html {
 
     my %marks = ();
     for my $m (@{ $node->{marks} }) {
-        $marks{"$m->[1] $m->[2]"} = $m->[0];
+        $marks{"$m->[1] $m->[2]"} = ($m->[0] eq "LB" ? $m->[4] : $m->[0]);
     }
 
     my $mark_alg = sub { 
@@ -435,9 +449,9 @@ sub as_html {
         return $img;
     };
 
-    my $b = "<table cellpadding=0 cellspacing=0>\n";
+    my $x = "<table cellpadding=0 cellspacing=0>\n";
     for my $i (0..$#{ $board }) {
-        $b .= "<tr>";
+        $x .= "<tr>";
         for my $j (0..$#{ $board->[$i] }) {
 
             my $c = { 
@@ -449,12 +463,12 @@ sub as_html {
             $c = $mark_alg->($marks{"$i $j"}, $c);
 
             $c  = "$dir/$c";
-            $b .= "<td><img src=\"$c\" width=19 height=19></td> ";
+            $x .= "<td><img src=\"$c\" width=19 height=19></td> ";
         }
-        $b .= "</tr>\n";
+        $x .= "</tr>\n";
     }
 
-    return "$b</table>";
+    return "$x</table>";
 }
 # }}}
 # as_image {{{
@@ -469,22 +483,26 @@ sub as_image {
     my $board = $node->{board};
     my $size  = @{$board->[0]}; # inaccurate?
 
-    if( ref($argu) eq "HASH" ) {
-        @opts{keys %$argu} = (values %$argu);
-    } else {
+    if( ref($argu) ne "HASH" ) {
         croak 
         "as_image() takes a hashref argument... e.g., {imagesize=>256, etc=>1} or nothing at all.";
     }
 
-    $opts{boardsize} = $size;
-    $opts{filename}  = "$nm.png" unless $opts{filename};
+    my $package = $argu->{'use'} || 'Games::Go::SGF2misc::GD';
+    if ($package =~ /svg/i) {
+        $opts{'imagesize'} = '256px';
+    }
 
-    use Games::Go::SGF2misc::GD;
-    my $image = new Games::Go::SGF2misc::GD(%opts);
+    @opts{keys %$argu}  = (values %$argu);
+    $opts{boardsize}    = $size;
+    $opts{filename}     = "$nm.png" unless $opts{filename};
 
-    $image->gobanColor(@{ $opts{gobanColor} }) if $opts{gobanColor};
+    my $image;
+    eval qq( use $package; \$image = $package->new(%opts); );
+
     $image->drawGoban();
 
+    # draw moves
     for my $i (0..$#{ $board }) {
         for my $j (0..$#{ $board->[$i] }) {
             if( $board->[$i][$j] =~ m/([WB])/ ) {
@@ -498,14 +516,40 @@ sub as_image {
         }
     }
 
-    # draw moves
+    my $marks = 0;
     # draw marks
+    for my $m (@{ $node->{marks} }) {
+        $image->addCircle($m->[3])   if $m->[0] eq "CR";
+        $image->addSquare($m->[3])   if $m->[0] eq "SQ";
+        $image->addTriangle($m->[3]) if $m->[0] eq "TR";
 
-    if( $opts{filename} =~ m/^\-\.(\w+)$/ ) {
-        return $image->dump($1);
+        $image->addLetter($m->[3], 'X', "./times.ttf") if $m->[0] eq "MA";
+        $image->addLetter($m->[3], $m->[4], "./times.ttf") if $m->[0] eq "LB";
+        $marks++;
     }
 
-    $image->save($opts{filename});
+    if ($argu->{'automark'}) {
+        unless ($marks) {
+            my $moves = $node->{moves};
+            foreach my $m (@$moves) {
+                $image->addCircle($m->[3]) unless $m->[3];
+            }
+        }
+    }
+
+    if ($package =~ /svg/i) {
+        if( $opts{filename} =~ m/.png$/ ) {
+            $image->export($opts{'filename'});
+        } else {
+            $image->save($opts{filename});
+        }
+    } else {
+        if( $opts{filename} =~ m/^\-\.(\w+)$/ ) {
+            return $image->dump($1);
+        }
+
+        $image->save($opts{filename});
+    }
 }
 # }}}
 # as_freezerbag {{{
@@ -545,16 +589,16 @@ sub _show_timings {
 
     my @times = ();
     for my $k (keys %{ $this->{Time} }) {
-        my $a   = $this->{Time}{$k}{diffs};  next unless ref($a) eq "ARRAY";
-        my $n   = int @$a;
+        my $x   = $this->{Time}{$k}{diffs};  next unless ref($x) eq "ARRAY";
+        my $n   = int @$x;
         my $sum = 0;
-           $sum += $_ for @$a;
+           $sum += $_ for @$x;
 
         push @times, [ $k, $sum, $n, ($sum/$n) ];
     }
 
-    for my $a (sort {$b->[1] <=> $a->[1]} @times) {
-        printf('%-35s: sum=%3.4fs cardinality=%5d avg=%3.2fs%s', @$a, "\n");
+    for my $x (sort {$b->[1] <=> $a->[1]} @times) {
+        printf('%-35s: sum=%3.4fs cardinality=%5d avg=%3.2fs%s', @$x, "\n");
     }
 
     delete $this->{Time};
@@ -601,10 +645,10 @@ sub _nodelist {
         my ($g, $v, $m) = ($1, $2, $3);
 
         if( $v > @{ $list } ) {
-            my $b = [];
-            push @$list, $b;
+            my $x = [];
+            push @$list, $x;
             for (1..$m) {
-                push @$b, undef;
+                push @$x, undef;
             }
         }
 
@@ -630,7 +674,7 @@ sub _parse {
         print STDERR "\n";
     }
 
-    my $gm_pr_reg = qr{^(?:GM|SZ|CA|AP|RU|KM|HA|FF|PW|PB|RE)$};
+    my $gm_pr_reg = qr{^(?:GM|SZ|CA|AP|RU|KM|HA|FF|PW|PB|RE|TM|OT|BR|WR|DT|PC|AN|BT|CP|EV|GN|GC|ON|RO|SO|US)$};
 
     if( $level == 0 ) { 
         # The file level... $gref is most certainly undefined...
@@ -762,7 +806,7 @@ sub _parse {
                     # also get the $marks!
 
                 } elsif( $p->{P} =~ m/^(?:LB)$/ and $p->{V} =~ m/^(..)\:(.+)$/ ) {
-                    push @{ $gnode->{marks} }, [ $2, $this->sgfco2numco($gref, $1), $1 ];
+                    push @{ $gnode->{marks} }, [ "LB", $this->sgfco2numco($gref, $1), $1, $2 ];
 
                 } elsif( not $p->{P} =~ m/$gm_pr_reg/ ) {
                     push @{ $gnode->{other}{$p->{P}} }, $p->{V};
@@ -1152,11 +1196,11 @@ __END__
 
     # You must install GD-2.15 (or so) in order to use it!!  You will also
     # need the bleeding edge versions of libpng and libgd.  At the time of
-    # this writing, I used libgd-2.0.12 and got GD-2.15 to install and
+    # this writing, I used libgd-2.0.22 and got GD-2.12 to install and
     # function normally.
 
     # Here's a calling example:
-    $sgf->as_image($node, {filename=>"html/$a->[$i].png", gobanColor=>[255, 255, 255]});
+    $sgf->as_image($node, {filename=>"html/$x->[$i].png", gobanColor=>[255, 255, 255]});
 
     # ::SGF2misc::GD takes hash-like arguments.  So, so does as_image().
     # filename=>"" and gobanColor=>[] are additions of mine, as they're
@@ -1165,6 +1209,16 @@ __END__
     # ::SGF2misc::GD.  Please read the Games::Go::SGF2misc::GD manpage; it
     # contains much more information.
 
+    # Some SGF writers will automatically add a CR (circle) property to
+    # the current move, which as_image will render as expected.  However
+    # other SGF writers do not.  To have as_image automatically render
+    # circles on the current moves add the hash argument auto_mark=>1.
+    # With auto_mark enabled, any nodes which already have _any_ form of
+    # markup will not receive _any_ circles on the current moves.  This
+    # is to help ensure consistancy with SGFs where the markup has other
+    # (more important?) uses.*This could have undesirable results for
+    # nodes in which there are multiple stones placed.
+
     # Also, in the interests of making this as clumsy as possible, if the
     # filename is a dash followed by a type extension,
 
@@ -1172,6 +1226,14 @@ __END__
 
     # then the image will be returned as a string rather than written to a
     # file.  
+
+    # Optionally, you can also install the ::SGF2misc::SVG package written
+    # by Orien.  To specify use of the SVG module call as_image with the 
+    # argument 'use' => 'Games::Go::SGF2misc::SVG'.  Functionally the two 
+    # rendering modules are equivalent, except SVG doesn't yet support
+    # returning the image as a string.  Aesthetically, however, ::SVG
+    # seems to render a cleaner image (at all resolutions), and does so
+    # significantly faster.
 
 =head1 as_freezerbag
   
@@ -1244,7 +1306,11 @@ __END__
 
     Please contact me with ANY suggestions, no matter how pedantic.
 
-    Jettero Heller <japh@voltar-confed.org>
+    Jettero Heller <jettero@cpan.org>
+
+    Some changes and patches provided by:
+
+    Orien Vandenbergh <orien@icecode.com>
 
 =head1 COPYRIGHT
 

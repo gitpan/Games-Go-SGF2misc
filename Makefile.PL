@@ -27,6 +27,8 @@ WriteMakefile(
         'Data::Dumper'   => 0, 
         'Compress::Zlib' => 0,
 
+        'Unix::Process'  => 0, # for the memory tests
+
         # These are only used in debug mode... 
         # But the whole thing may parse poorly without them.
         # They're not much trouble though.

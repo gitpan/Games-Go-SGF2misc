@@ -1,14 +1,14 @@
 # Games::Go::SGF2misc::GD
 #
 # Author: Orien Vandenbergh <orien@icecode.com>
-# $Id: GD.pm,v 1.4 2004/03/25 16:41:04 jettero Exp $
+# $Id: GD.pm,v 1.7 2004/05/13 14:34:45 jettero Exp $
 # vi: fdm=marker fdl=0
 
 package Games::Go::SGF2misc::GD;
 
 use 5.006;
 use strict;
-use warnings;
+no warnings;
 
 use GD;
 
@@ -39,9 +39,21 @@ sub init() {
     $self->{'border'}       = int( ($self->{'imagesize'} - ($self->{'stonesize'} * $self->{'boardsize'})) /2 ) + int($self->{'stonesize'}/2);
     $self->{'image'}        = GD::Image->newTrueColor($self->{'imagesize'},$self->{'imagesize'});
 
-    $self->{'kaya'}         = $self->{'image'}->colorAllocate(0xee,0xb1,0x4b);
-    $self->{'white'}        = $self->{'image'}->colorAllocate(255,255,255);
-    $self->{'black'}        = $self->{'image'}->colorAllocate(0,0,0);
+    if ($self->{'gobanColor'}) {
+        $self->{'gobanColor'}   = $self->{'image'}->colorAllocate(@{ $self->{'gobanColor'} });
+    } else {
+        $self->{'gobanColor'}   = $self->{'image'}->colorAllocate(0xee,0xb1,0x4b);
+    }
+    if ($self->{'whiteColor'}) {
+        $self->{'whiteColor'}   = $self->{'image'}->colorAllocate(@{ $self->{'whiteColor'} });
+    } else {
+        $self->{'whiteColor'}   = $self->{'image'}->colorAllocate(0xff,0xff,0xff);
+    }
+    if ($self->{'blackColor'}) {
+        $self->{'blackColor'}   = $self->{'image'}->colorAllocate(@{ $self->{'blackColor'} });
+    } else {
+        $self->{'blackColor'}   = $self->{'image'}->colorAllocate(0x00,0x00,0x00);
+    }
 }
 # }}}
 # sub gobanColor() {{{
@@ -186,7 +198,7 @@ sub addLetter {
     return unless ($self->{'stonesize'} > 5);
     my ($move,$letter,$stone) = @_;
     my $ratio = 1.3;
-    my $font = './VeraMono.ttf';
+    my $font = $ENV{TTFONT} ? $ENV{TTFONT} : return;
     
     my ($x,$y) = $self->calcXY($move);
     
@@ -204,7 +216,7 @@ sub addLetter {
     my ($width,$height);
     do {
         $points--;
-        my @bounds = GD::Image->stringFT($color,$font,$points,0,$x,$y,$letter);
+        my @bounds = GD::Image->stringFT($color,$font,$points,0,$x,$y,$letter) or return;
         $height = $bounds[3] - $bounds[5];
         $width  = $bounds[2] - $bounds[0];
     } while (($height>$max) or ($width>$max));
