@@ -1,0 +1,40 @@
+This file contains message digests of all files listed in MANIFEST,
+signed via the Module::Signature module, version 0.36.
+
+To verify the content in this distribution, first make sure you have
+Module::Signature installed, then type:
+
+    % cpansign -v
+
+It would check each file's integrity, as well as the signature's
+validity.  If "==> Signature verified OK! <==" is not displayed,
+the distribution may already have been compromised, and you should
+not run its Makefile.PL or Build.PL.
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+SHA1 f41d00fd55459057d34ceadddc89fbd3316f78bd MANIFEST
+SHA1 4ea929a6bc563322ba059db2d52c431e976e5bd6 Makefile.PL
+SHA1 0730a0ac7e9f31542b123799f8ed479f19e2d469 README
+SHA1 f628a7571774c9a502eaebce236107dcd750042e SGF2misc.pm
+SHA1 caac368d26fec3d334aa6207e4333de571e194e9 sgf/3x3-cap.sgf
+SHA1 55233ba6207c52da1a2473476822031e7ec5f38e sgf/crazy.sgf
+SHA1 5e6dde4770f62195ff44eeda1406e620183109e2 sgf/error.sgf
+SHA1 208c3e4bf812cd5f92505b17f079902380db5d4c sgf/jettero-sixrusses-2004-03-18.sgf
+SHA1 d0f33064ba49fbecb28b05215c8b614f70bd7c6f sgf/qjzm-a.sgf
+SHA1 af45db84661887ad47b09cb8f45d0890122721be sgf/redrose-tartrate.sgf
+SHA1 c6639e9d68118fa7cb2d2583b1c9cfd8f0528e4a sgf/talisker-jettero-2004-03-17.sgf
+SHA1 91c33c888937dbaf45884af1aa2e24c847523599 t/00_signature.t
+SHA1 b2c3bc416fd64540c96de33defc5b4230d286b38 t/05_load_modules.t
+SHA1 61a851a1c1a1fe70fe448df506a98fe150a7fc53 t/07_load_sgfs.t
+SHA1 5146751e05028c81772dd527fa3a3114e9f096c7 t/10_as_perl_extractions.t
+SHA1 c673227234cfc6d85fe885168f58d4fe830edd10 t/15_3x3_capture_count.t
+SHA1 84f4d12163bb32b4f56f9df683ed9aa30de276e0 t/17_board_draw.t
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.2.2 (GNU/Linux)
+
+iD8DBQFAXcpj5OVNEZoM2pkRAkl2AJ4/GVLUOIMa+mOQ7NYLyccqzW9lfQCdFREO
+zTdPdAqPDphqJEdTl9cuYDw=
+=jSfA
+-----END PGP SIGNATURE-----
