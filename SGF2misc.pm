@@ -1,5 +1,5 @@
 # vi:fdm=marker fdl=0
-# $Id: SGF2misc.pm,v 1.44 2004/03/23 13:18:11 jettero Exp $ 
+# $Id: SGF2misc.pm,v 1.46 2004/03/23 14:29:59 jettero Exp $ 
 
 package Games::Go::SGF2misc;
 
@@ -10,7 +10,7 @@ use Carp;
 use Parse::Lex;
 
 # This is actually my major version, followed by my current CVS revision.
-our $VERSION = q($Revision: 1.44 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.6./;
+our $VERSION = q($Revision: 1.46 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.6./;
 
 1;
 
@@ -428,7 +428,7 @@ sub as_image {
                 if( $ENV{DEBUG} > 0 ) {
                     print STDERR "placeStone($1, [$i, $j])\n";
                 }
-                $image->placeStone(lc($1), [$i, $j]);
+                $image->placeStone(lc($1), [reverse( $i, $j )]);  # SGFs are $y, $x, my matrix is $x, $y ...
             }
         }
     }
@@ -1069,8 +1069,57 @@ __END__
 
 =head1 as_image
 
-    # This is still in the works... sooon!
+    # This uses the fantastic ::SGF2misc::GD package by Orien Vandenbergh
+    # that comes with this package.
 
+    # You must install GD-2.15 (or so) in order to use it!!
+    # You will need the latest bleeding edge versions of libpng and libgd
+    # though.  At the time of this writing, I used libgd-2.0.12 and got
+    # GD-2.15 to install and function normally.
+
+    # Rather than explain myself like a normal human, I'll provide a
+    # lengthy example:
+
+    my $sgf = new Games::Go::SGF2misc;
+       $sgf->parse($ARGV[0]) or warn "could not parse: " . $sgf->errstr;
+
+
+    # But I'll explain a copule things.  This fetches the nodelist for the
+    # first variation in the SGF.  This is not necessarilly the longest
+    # variation, but it is the first variation.
+
+    my $a = $sgf->node_list->{"game #1"}->[0];
+
+    for my $i (0..$#{$a}) {
+        open OUT, ">html/$a->[$i].html" or die $!;
+
+        if( $i-1 >= 0 ) {
+            print OUT "<li><a href=\"", $a->[$i-1], ".html\">previous</a>";
+        } else { print OUT "<li> previous" }
+
+        if( $i+1 <= $#{$a} ) {
+            print OUT "<li><a href=\"", $a->[$i+1], ".html\">next</a>"
+        } else { print OUT "<li> next" }
+
+
+        # ::SGF2misc::GD takes hash-like arguments.  So, so does
+        # as_image().  It must write to a file, and doesn't return anything
+        # useful.
+
+        # filename=>"" and gobanColor=>[] are additions of mine, as they're
+        # actually used on separate calls in the ::SGF2misc::GD package.
+        # All other arguments are passed to the new() member function.
+
+        # For further information, please read the Games::Go::SGF2misc::GD
+        # manpage.
+
+        $sgf->as_image($a->[$i], {filename=>"html/$a->[$i].png", gobanColor=>[255, 255, 255]});
+
+        print OUT "<P>";
+        print OUT "<img src=\"$a->[$i].png\">";
+
+        close OUT;
+    }
 
 =head1 parse_hash
 

@@ -1,8 +1,11 @@
 
+GD NOTE: 
+
+I don't include GD/GD::Image in the PREREQ_PM, but you will need 
+it to use the as_image() function.
+
 
 Parse::Lex NOTE:
-
-
 
 If you are having trouble with Parse::Lex, then know that you are
 not alone.  It seemed to compile on my devel computer, but
