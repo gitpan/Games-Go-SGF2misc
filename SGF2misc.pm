@@ -1,5 +1,5 @@
 # vi:fdm=marker fdl=0
-# $Id: SGF2misc.pm,v 1.32 2004/03/21 17:01:20 jettero Exp $ 
+# $Id: SGF2misc.pm,v 1.33 2004/03/21 17:07:19 jettero Exp $ 
 
 package Games::Go::SGF2misc;
 
@@ -7,7 +7,8 @@ use strict;
 use Carp;
 use Parse::Lex;
 
-our $VERSION = q($Revision: 1.32 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.3./;
+# This is actually my major version, followed by my current CVS revision.
+our $VERSION = q($Revision: 1.33 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.3./;
 
 1;
 

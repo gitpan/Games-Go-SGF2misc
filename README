@@ -6,26 +6,22 @@ Oh, great... yet another SGF parser?
 2) sgf2misc is *gasp* closed source (mostly)
 3) I wanted to learn SGF
 4) Parse::Lex is neat
-5) This one uses GD!
+5) This one uses GD (well, will use)!
 6) This one produces data that you can use in your own programs!
-   as_hash() returns a cool perl structure that should be pretty
-   obvious to use.  as_perl() spits out sources (bless
-   Data::Dumper) and I don't think I could have done them with
-   the obvious choice, Games::Go::SGF.
+   as_perl() and node_list() returns cool perl structures that
+   you can use in your own programs.  I don't think I could have
+   done this stuff with the obvious choice, Games::Go::SGF.
 
 I'm tired of enumerating.  Basically, this module reads in SGFs
-and produces useable output in dozens (1 so far) of formats.
+and produces useable output in dozens (2 so far) of formats.
+
 
 Later:
 
 I really wanted to use a Grammer with the Lexer.  Turns out,
 Games::Go::SGF uses a grammer with Parse::RecDescent.  Suddenly I
 begin to wonder why I didn't just use that module afterall.  Heh.  
-But in the end, it's parser isn't going to turn out my cool hash.
 
+I am now aware, that I have re-invented the wheel.  *sigh*
 
-Mo Latah:
-
-I wish to design a cool plugin heirachry so I can install all the
-cool as_something()s that are bound to pour in as fast as
-spamcop.net can filter them.
+Oh well!  Have fun!
