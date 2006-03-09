@@ -1,5 +1,5 @@
 # vi:fdm=marker fdl=0
-# $Id: SGF2misc.pm,v 1.3 2005/01/19 22:33:40 jettero Exp $ 
+# $Id: SGF2misc.pm,v 1.7 2006/03/09 19:00:22 jettero Exp $ 
 
 package Games::Go::SGF2misc;
 
@@ -11,8 +11,7 @@ use Parse::Lex;
 use Data::Dumper;
 use Compress::Zlib;
 
-# This is actually my major and minor versions, followed by my current CVS revision.
-our $VERSION = q($Revision: 1.3 $); $VERSION =~ s/[^\.\d]//g; $VERSION =~ s/^1\./0.9./;
+our $VERSION = "0.9.6";
 
 1;
 
@@ -714,8 +713,10 @@ sub _parse {
         }
 
         unless( $gref->{game_properties}{FF} == 3 or $gref->{game_properties}{FF} == 4 ) {
-            $this->{error} = "Parse Error: Need FF[3] or FF[4] property in the first node of the game... not found.";
-            return 0;
+            unless( $ENV{ALLOW_STRANGE_FFs} ) {
+                $this->{error} = "Parse Error: Need FF[3] or FF[4] property in the first node of the game... not found.";
+                return 0;
+            }
         }
 
         if( $gref->{game_properties}{SZ} < 3 ) {
@@ -869,7 +870,7 @@ sub _ref2id {
 
         $this->{refdb2}{$ref} = $id;
 
-        for my $k (qw(board marks moves other captures game_properties variations)) {
+        for my $k (qw(comments board marks moves other captures game_properties variations)) {
             $this->{refdb}{$id}{$k} = $ref->{$k} if defined $ref->{$k};
         }
 

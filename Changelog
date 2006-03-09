@@ -1,3 +1,5 @@
+2006-03-09 13:58: 
+    I found a bug in the ref copy routine -- that omits comments from nodes returned by as_perl()!
 
 2005-01-19 16:20ish: 
     The Many Faces of Go seems to generate SGFs that SGF2misc can't handle!
