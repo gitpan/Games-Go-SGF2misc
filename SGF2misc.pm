@@ -11,7 +11,7 @@ use Parse::Lex;
 use Data::Dumper;
 use Compress::Zlib;
 
-our $VERSION = "0.9.6";
+our $VERSION = "0.9.7";
 
 1;
 
