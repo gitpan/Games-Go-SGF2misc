@@ -32,12 +32,10 @@ for my $i (1..$tests+1) {
     my $r = $sgf->parse($file);
 
     $size = Unix::Process->vsz;
-    print STDERR " \$size = $size ";
     if( defined $last_size ) {
         if( $size <= $freebies + $last_size ) {
             ok 1;
         } else {
-            print STDERR " \$size - \$last_size =", ($size - $last_size), " \n";
             ok 0;
         }
     }

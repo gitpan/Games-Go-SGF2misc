@@ -29,6 +29,8 @@ WriteMakefile(
 
         'Unix::Process'  => 0, # for the memory tests
 
+        'CGI' => 0, # just for escaping comments with escapeHTML
+
         # These are only used in debug mode... 
         # But the whole thing may parse poorly without them.
         # They're not much trouble though.

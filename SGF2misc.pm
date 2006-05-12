@@ -1,5 +1,5 @@
 # vi:fdm=marker fdl=0
-# $Id: SGF2misc.pm,v 1.7 2006/03/09 19:00:22 jettero Exp $ 
+# $Id: SGF2misc.pm,v 1.12 2006/05/12 13:13:41 jettero Exp $ 
 
 package Games::Go::SGF2misc;
 
@@ -10,8 +10,9 @@ use Carp;
 use Parse::Lex;
 use Data::Dumper;
 use Compress::Zlib;
+use CGI qw(escapeHTML);
 
-our $VERSION = "0.9.7";
+our $VERSION = "0.9.7.i"; # .i == 'Igs Is Irritating'
 
 1;
 
@@ -41,6 +42,8 @@ sub parse {
         local $/;  # Enable local "slurp" ... ie, by unsetting $/ for this local scope, it will not end lines on \n
         open SGFIN, $file or die "couldn't open $file: $!";
 
+        our $FILENAME = $file;
+
         return $this->parse_internal(\*SGFIN);
     }
 
@@ -53,6 +56,8 @@ sub parse_string {
     my $this = shift;
     my $string = shift;
 
+    our $FILENAME = "STRING";
+
     return $this->parse_internal($string);
 }
 # }}}
@@ -60,6 +65,8 @@ sub parse_string {
 sub parse_internal {
     my $this = shift;
     my $file = shift;
+
+    our $FILENAME;
 
     for my $k (keys %$this) {
         delete $this->{$k} unless {Time=>1, frm=>1}->{$k};
@@ -71,14 +78,14 @@ sub parse_internal {
     my @rules = (
         VALUE  => '\[(?ms:.*?(?<!\x5c))\]',
 
-        BCOL   => '\(',         # begin collection
-        ECOL   => '\)',         # end collection
-        PID    => '[A-Z]+',     # property identifier
-        NODE   => ';',          # new node
+        BCOL   => '\(',                   # begin collection
+        ECOL   => '\)',                   # end collection
+        PID    => '(?:CoPyright|[A-Z]+)', # property identifier (CoPyright is the spurious IGS tag, assholes)
+        NODE   => ';',                    # new node
         WSPACE => '[\s\r\n]',
 
         qw(ERROR  .*), sub {
-            $global::lex_error = "Parse Error reading $file: $_[1]\n";
+            $global::lex_error = "Parse Error reading $FILENAME: $_[1]\n";
         }
     );
 
@@ -103,7 +110,7 @@ sub parse_internal {
             my $V = $token->text;
 
             if( $C eq "ERROR" or defined $global::lex_error ) {
-                $global::lex_error = "Parse Error reading $file: unknown";
+                $global::lex_error = "Parse Error reading $FILENAME: unknown"; # TODO: this $file should be ... the name of it instead
                 $this->{error} = $global::lex_error;
                 return 0;
             }
@@ -126,7 +133,7 @@ sub parse_internal {
             # this get's it's own if block for the $pid
             if( $C eq "PID" ) {
                 if( $nos == -1 ) {
-                    $this->{error} = "Parse Error reading $file: property identifier ($V) in strange place";
+                    $this->{error} = "Parse Error reading $FILENAME: property identifier ($V) in strange place";
                     return 0;
                 }
                 push @{ $ref->{n}[$nos] }, {P=>$V};
@@ -137,7 +144,7 @@ sub parse_internal {
                 $V =~ s/\\(.)/$1/msg;
 
                 if( $nos == -1 or $pid == -1 ) {
-                    $this->{error} = "Parse Error reading $file: property value ($V) in strange place";
+                    $this->{error} = "Parse Error reading $FILENAME: property value ($V) in strange place";
                     return 0;
                 }
                 if( defined $ref->{n}[$nos][$pid]{V} ) {
@@ -146,6 +153,9 @@ sub parse_internal {
                 }
 
                 $ref->{n}[$nos][$pid]{V} = $V;
+
+            } elsif( $C eq "WSPACE" ) {
+                # don't set pid to -1 here (2006-5-12)
 
             } else {
                 $pid = -1;
@@ -386,88 +396,253 @@ sub as_text {
     return $x;
 }
 # }}}
+# _mark_alg {{{
+sub _mark_alg {
+    my $this = shift;
+    my ($mark, $img) = @_;
+
+    return "bt.gif" if $mark eq "TR" and $img eq "b.gif";
+    return "wt.gif" if $mark eq "TR" and $img eq "w.gif";
+    return "bc.gif" if $mark eq "CR" and $img eq "b.gif";
+    return "wc.gif" if $mark eq "CR" and $img eq "w.gif";
+    return "bq.gif" if $mark eq "SQ" and $img eq "b.gif";
+    return "wq.gif" if $mark eq "SQ" and $img eq "w.gif";
+
+    if( ($mark = int($mark)) > 0 and $mark <= 100 ) {
+        return "b$mark.gif" if $img eq "b.gif";
+        return "w$mark.gif"
+    }
+
+    return $img;
+}
+# }}}
+# _crazy_moku_alg {{{
+sub _crazy_moku_alg {
+    my $this = shift;
+    my ($i, $j, $size) = @_;
+
+    our $cma_size;
+    our $hoshi;
+
+    if( $size != $cma_size or not $hoshi ) {
+        $hoshi = {};
+        if( $size == 19 ) {
+            $hoshi = { "3 3" => 1, "3 15" => 1, "15 3" => 1, "15 15" => 1,
+                "9 3" => 1, "9 15" => 1, "3 9" => 1, "15 9" => 1, "9 9" => 1, };
+        } elsif( $size == 13 ) {
+            $hoshi = { "3 3" => 1, "9 9" => 1, "3 9" => 1, "9 3" => 1,
+                "6 3" => 1, "3 6" => 1, "9 6" => 1, "6 9" => 1, "6 6" => 1, };
+        } elsif( $size == 9 ) {
+            $hoshi = { "2 2" => 1, "2 6" => 1, "6 6" => 1, "6 2" => 1, "4 4" => 1, };
+        }
+    }
+
+    return "ulc.gif" if $i == 0     and $j == 0;
+    return "urc.gif" if $i == 0     and $j == $size;
+    return "llc.gif" if $i == $size and $j == 0;
+    return "lrc.gif" if $i == $size and $j == $size;
+    return "ts.gif"  if $i == 0     and $j != 0 and $j != $size;
+    return "bs.gif"  if $i == $size and $j != 0 and $j != $size;
+    return "ls.gif"  if $j == 0     and $i != 0 and $i != $size;
+    return "rs.gif"  if $j == $size and $i != 0 and $i != $size;
+
+    return "h.gif" if $hoshi->{"$i $j"};
+    return "p.gif",
+}
+# }}}
 # as_html {{{
 sub as_html {
-    my $this = shift;
-    my $node = shift;
-    my $dir  = shift;
-       $dir  = "./img" unless $dir;
+    my $this  = shift;
+    my $node  = shift;
+    my $dir   = shift;
+       $dir   = "./img" unless $dir;
+    my $id    = shift;
+    my $onode = $node;
 
     $node = $this->as_perl( $node, 1 ) or croak $this->errstr;
 
+    # use Data::Dumper; $Data::Dumper::Indent = 0;
+    # warn Dumper( $node );
+
+    my $gref      = $this->as_perl(1);
+    my $game_info = $gref->{game_properties};
+     
+=cut
+game_properties' => {'FF' => 4,'PB' => 'Orien Vandenbergh
+(nichus)','GM' => 1,'KM' => '6.5','SZ' => 19,'PC' => 'Dragon Go Server: http://www.dragongoserver.net','RE' => 'W+29.5','RU' =>
+'Japanese','BR' => '13 kyu','GN' => 'jettero-nichus-20041229.sgf','GC' => 'Game ID: 85389','DT' => '2004-10-29,2004-12-29','PW' =>
+'Jettero Heller (jettero)','WR' => '13 kyu','OT' => '30 days + 1 day/10 periods Japanese byoyomi'}
+=cut
+
     my $board = $node->{board};
     my $size  = @{$board->[0]}; # inaccurate?
-
-    my $hoshi = {};
-    if( $size == 19 ) {
-        $hoshi = { "3 3" => 1, "3 15" => 1, "15 3" => 1, "15 15" => 1,
-            "9 3" => 1, "9 15" => 1, "3 9" => 1, "15 9" => 1, "9 9" => 1, };
-    } elsif( $size == 13 ) {
-        $hoshi = { "3 3" => 1, "9 9" => 1, "3 9" => 1, "9 3" => 1,
-            "6 3" => 1, "3 6" => 1, "9 6" => 1, "6 9" => 1, "6 6" => 1, };
-    } elsif( $size == 9 ) {
-        $hoshi = { "2 2" => 1, "2 6" => 1, "6 6" => 1, "6 2" => 1, "4 4" => 1, };
-    }
-
-    $size--;
-
-    my $crazy_moku_alg = sub { my ($i, $j) = @_;
-        return "ulc.gif" if $i == 0     and $j == 0;
-        return "urc.gif" if $i == 0     and $j == $size;
-        return "llc.gif" if $i == $size and $j == 0;
-        return "lrc.gif" if $i == $size and $j == $size;
-        return "ts.gif"  if $i == 0     and $j != 0 and $j != $size;
-        return "bs.gif"  if $i == $size and $j != 0 and $j != $size;
-        return "ls.gif"  if $j == 0     and $i != 0 and $i != $size;
-        return "rs.gif"  if $j == $size and $i != 0 and $i != $size;
-
-        return "h.gif" if $hoshi->{"$i $j"};
-        return "p.gif",
-    };
+       $size--;
 
     my %marks = ();
     for my $m (@{ $node->{marks} }) {
         $marks{"$m->[1] $m->[2]"} = ($m->[0] eq "LB" ? $m->[4] : $m->[0]);
     }
 
-    my $mark_alg = sub { 
-        my ($mark, $img) = @_;
+    my $arow = "<tr align='center'><td>" . join("", map("<td>$_", qw(A B C D E F G H J K L M N O P Q R S T))) . "<td>";
 
-        return "bt.gif" if $mark eq "TR" and $img eq "b.gif";
-        return "wt.gif" if $mark eq "TR" and $img eq "w.gif";
-        return "bc.gif" if $mark eq "CR" and $img eq "b.gif";
-        return "wc.gif" if $mark eq "CR" and $img eq "w.gif";
-        return "bq.gif" if $mark eq "SQ" and $img eq "b.gif";
-        return "wq.gif" if $mark eq "SQ" and $img eq "w.gif";
+    my $x = "<table class='sgf2miscboard' cellpadding=0 cellspacing=0>$arow\n";
 
-        if( ($mark = int($mark)) > 0 and $mark <= 100 ) {
-            return "b$mark.gif" if $img eq "b.gif";
-            return "w$mark.gif"
-        }
-
-        return $img;
-    };
-
-    my $x = "<table cellpadding=0 cellspacing=0>\n";
     for my $i (0..$#{ $board }) {
-        $x .= "<tr>";
-        for my $j (0..$#{ $board->[$i] }) {
+        $x .= "<tr><td>". (19-$i);
+        for my $j (0 .. $#{ $board->[$i] }) {
+            my $iid = "";
+               $iid = " id='$id.$i.$j'" if $id;
 
             my $c = { 
                 'B' => "b.gif",
                 'W' => "w.gif",
             }->{$board->[$i][$j]};
 
-            $c = $crazy_moku_alg->($i, $j) unless $c;
-            $c = $mark_alg->($marks{"$i $j"}, $c);
+            $c = "wc.gif" if $c eq "w.gif" and $node->{moves}[0][1] == $i and $node->{moves}[0][2] == $j;
+            $c = "bc.gif" if $c eq "b.gif" and $node->{moves}[0][1] == $i and $node->{moves}[0][2] == $j;
 
-            $c  = "$dir/$c";
-            $x .= "<td><img src=\"$c\" width=19 height=19></td> ";
+            $c = $this->_crazy_moku_alg($i, $j, $size) unless $c;
+            $c = $this->_mark_alg($marks{"$i $j"}, $c);
+
+            $c  = "$dir/$c"; 
+            $x .= "<td><img$iid src=\"$c\">";
         }
-        $x .= "</tr>\n";
+        $x .= "<td align='right'>". (19-$i) . "\n";
     }
 
-    return "$x</table>";
+    my $cpid = "";
+       $cpid = " id='$id.state'" if $id;
+
+    my $p = "<tr><td$cpid colspan='21' class='sgf2misccaps'><br/>W.Caps: $node->{captures}->{W}\&nbsp; \&nbsp;B.Caps: $node->{captures}->{B}";
+
+    if( $node->{other} ) {
+        my $TB = $node->{other}->{TB};
+        my $TW = $node->{other}->{TW};
+
+        if ($TB and $TW) {
+            my $cb = $node->{captures}->{B};
+            my $cw = $node->{captures}->{W};
+            my $km = $game_info->{KM};
+
+            my ($tb, $tw) = (0, 0);
+            for my $r (@$TB) {
+                my @a = $this->sgfco2numco($gref, $r);
+
+                $tb ++;
+                $cb ++ if $board->[$a[0]][$a[1]] eq "W";
+            }
+
+            for my $r (@$TW) {
+                my @a = $this->sgfco2numco($gref, $r);
+
+                $tw ++;
+                $cw ++ if $board->[$a[0]][$a[1]] eq "B";
+            }
+
+            my $f = ($tw + $cw + $km) - ($tb + $cb);
+               $f = ($f<0 ? "B+".abs($f) : "W+$f");
+
+            $p = "<tr><td$cpid colspan='21' class='sgf2miscresult'><br/>W($tw t + $cw c + $km k), B($tb t + $cb c): $f";
+        }
+    }
+
+    my $cmid = "";
+       $cmid = " id='$id.comment'" if $id;
+
+    my $comments = "";
+       $comments .= escapeHTML($_) for @{$node->{comments}};
+       $comments =~ s/[\r\n]/<br\/>/sg;
+
+    return "$x$arow$p</table><!--MATCHME--><div$cmid class='sgf2misccomment'>$comments</div>";
+}
+# }}}
+# as_js {{{
+sub as_js {
+    my $this  = shift;
+    my $node  = shift;
+
+    $node = $this->as_perl( $node, 1 ) or croak $this->errstr;
+
+    my $gref      = $this->as_perl(1);
+    my $game_info = $gref->{game_properties};
+
+    my $board = $node->{board};
+    my $size  = @{$board->[0]}; # inaccurate?
+       $size--;
+
+    my %marks = ();
+    for my $m (@{ $node->{marks} }) {
+        $marks{"$m->[1] $m->[2]"} = ($m->[0] eq "LB" ? $m->[4] : $m->[0]);
+    }
+
+    my @board  = ();
+    for my $i (0..$#{ $board }) {
+        my $row = [];
+        for my $j (0 .. $#{ $board->[$i] }) {
+            my $c = { 
+                'B' => "b.gif",
+                'W' => "w.gif",
+            }->{$board->[$i][$j]};
+
+            $c = "wc.gif" if $c eq "w.gif" and $node->{moves}[0][1] == $i and $node->{moves}[0][2] == $j;
+            $c = "bc.gif" if $c eq "b.gif" and $node->{moves}[0][1] == $i and $node->{moves}[0][2] == $j;
+
+            $c = $this->_crazy_moku_alg($i, $j, $size) unless $c;
+            $c = $this->_mark_alg($marks{"$i $j"}, $c);
+
+            push @$row, $c;
+        }
+
+        push @board, $row;
+    }
+
+    local $Data::Dumper::Indent = 0;
+    my $board = Dumper(\@board);
+       $board =~ s/^\$VAR1\s*=\s*//s;
+       $board =~ s/\s*\;\s*$//s;
+       $board =~ s/\.gif//sg;
+
+    my $p = "<br/>W.Caps: $node->{captures}->{W}\&nbsp; \&nbsp;B.Caps: $node->{captures}->{B}";
+
+    if( $node->{other} ) {
+        my $TB = $node->{other}->{TB};
+        my $TW = $node->{other}->{TW};
+
+        if ($TB and $TW) {
+            my $cb = $node->{captures}->{B};
+            my $cw = $node->{captures}->{W};
+            my $km = $game_info->{KM};
+
+            my ($tb, $tw) = (0, 0);
+            for my $r (@$TB) {
+                my @a = $this->sgfco2numco($gref, $r);
+
+                $tb ++;
+                $cb ++ if $board->[$a[0]][$a[1]] eq "W";
+            }
+
+            for my $r (@$TW) {
+                my @a = $this->sgfco2numco($gref, $r);
+
+                $tw ++;
+                $cw ++ if $board->[$a[0]][$a[1]] eq "B";
+            }
+
+            my $f = ($tw + $cw + $km) - ($tb + $cb);
+               $f = ($f<0 ? "B+".abs($f) : "W+$f");
+
+            $p = "<br/>W($tw t + $cw c + $km k), B($tb t + $cb c): $f";
+        }
+    }
+
+    my $comments = "";
+       $comments .= escapeHTML($_) for @{$node->{comments}};
+       $comments =~ s/[\r\n]/<br\/>/sg;
+
+           $p =~ s/"/\\"/sg;
+    $comments =~ s/"/\\"/sg;
+
+    return "{ board: $board, status: \"$p\", comment: \"$comments\" }";
 }
 # }}}
 # as_image {{{
@@ -704,6 +879,9 @@ sub _parse {
         for my $p (@$pnode) {
             if( $p->{P} =~ m/$gm_pr_reg/ ) {
                 $gref->{game_properties}{$p->{P}} = $p->{V};
+            }
+            if( $p->{P} eq "CoPyright" ) {
+                $gref->{game_properties}{FF} = 4;
             }
         }
 

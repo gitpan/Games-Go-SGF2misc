@@ -19,10 +19,8 @@ plan tests => int @nodes + 1;
 my @before = ();
 my @after  = ();
 
-print STDERR " freezing...";
 my $freezer = freeze $sgf;
 
-print STDERR " thawing...";
 my $fsg = new Games::Go::SGF2misc;
    $fsg->thaw( $freezer ) or die "failed to thaw(): " . $fsg->errstr;
 
@@ -34,13 +32,9 @@ for my $n (@nodes) {
     if( $a eq $b ) {
         ok(1);
     } else {
-        if( --$s > 0 ) {
-            print STDERR "\$a=\n$a\n\$b=\n$b\n";
-        }
         ok(0);
     }
 }
 
-print STDERR " de-scoping (dubious!?!?)";
 kill -11, $$
 } ok(1); # $sgf/$fsg have gone out of scope... which was causing sagfaults...
