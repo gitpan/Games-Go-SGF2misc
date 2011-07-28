@@ -1,3 +1,6 @@
+0.9782: Fri Jul 28 2011
+   - There were some bugs with as_html when rendering boards smaller than 19x19.
+
 0.9781: Fri Jun 04 2010
    - hrm, there are serious critical flaws in Parse::Lex.  I wish this module
      wasn't married to it.  Parse::Template::ppregexp intentionally changes !

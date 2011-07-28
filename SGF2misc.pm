@@ -9,7 +9,7 @@ use Data::Dumper;
 use Compress::Zlib;
 use CGI qw(escapeHTML);
 
-our $VERSION = 0.9781;
+our $VERSION = 0.9782;
 
 1;
 
@@ -406,7 +406,7 @@ sub _mark_alg {
     return "wq.gif" if $mark eq "SQ" and $img eq "w.gif";
 
     if( ($mark = int($mark)) > 0 and $mark <= 100 ) {
-        return "b$mark.gif" if $img eq "b.gif";
+        return "b$mark.gif" if $img =~ "b[tcq]?.gif";
         return "w$mark.gif"
     }
 
@@ -480,12 +480,13 @@ game_properties' => {'FF' => 4,'PB' => 'Orien Vandenbergh
         $marks{"$m->[1] $m->[2]"} = ($m->[0] eq "LB" ? $m->[4] : $m->[0]);
     }
 
-    my $arow = "<tr align='center'><td>" . join("", map("<td>$_", qw(A B C D E F G H J K L M N O P Q R S T))) . "<td>";
+    my @letters = qw(A B C D E F G H J K L M N O P Q R S T);
+    my $arow = "<tr align='center'><td>" . join("", map("<td>$_", @letters[0..$size])) . "<td>";
 
     my $x = "<table class='sgf2miscboard' cellpadding=0 cellspacing=0>$arow\n";
 
     for my $i (0..$#{ $board }) {
-        $x .= "<tr><td>". (19-$i);
+        $x .= "<tr><td>". (($size+1)-$i);
         for my $j (0 .. $#{ $board->[$i] }) {
             my $iid = "";
                $iid = " id='$id.$i.$j'" if $id;
@@ -504,7 +505,7 @@ game_properties' => {'FF' => 4,'PB' => 'Orien Vandenbergh
             $c  = "$dir/$c"; 
             $x .= "<td><img$iid src=\"$c\">";
         }
-        $x .= "<td align='right'>". (19-$i) . "\n";
+        $x .= "<td align='right'>". (($size+1)-$i) . "\n";
     }
 
     my $cpid = "";
